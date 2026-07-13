@@ -40,6 +40,7 @@ const TOOLBAR_CALENDAR_ID = 'tiktok-talent-helper-calendar';
 const POPUP_THEME_STORAGE_KEY = 'popupTheme';
 const EXPORT_PRODUCT_INFO_STORAGE_KEY = 'exportProductInfoEnabled';
 const TOOLBAR_LAYOUT_STORAGE_KEY = 'toolbarLayout';
+const TOOLBAR_VISIBLE_STORAGE_KEY = 'toolbarVisible';
 const DEFAULT_POPUP_THEME = 'neon';
 const AVAILABLE_POPUP_THEMES = ['neon', 'paper', 'ocean', 'ember'];
 const EXTERNAL_TIKTOK_DETAIL_ACTION = 'fetch_external_tiktok_detail';
@@ -56,7 +57,10 @@ const PREVIEW_TRANSLATION_TEXT_LIMIT = 8000;
 const TOOLBAR_EDGE_GAP = 10;
 let toolbarThemeListenerBound = false;
 let toolbarResizeListenerBound = false;
+let toolbarSizeObserver = null;
 let toolbarDragState = null;
+let suppressToolbarHandleClick = false;
+let toolbarVisible = true;
 let toolbarLayout = {
   side: 'right',
   centerRatio: null,
@@ -141,744 +145,274 @@ window.addEventListener('message', (e) => {
   }
 });
 
-// 注入高级水晶毛玻璃气泡 UI 的专属样式表（极致高透莫兰迪色，绝无遮挡）
+// 注入高端水晶毛玻璃 UI 的专属样式表（使用高透莫兰迪与精细 HSL 配色，辅以丝滑的三维物理过渡）
 function injectStyles() {
   if (document.getElementById('tiktok-talent-helper-styles')) return;
   const style = document.createElement('style');
   style.id = 'tiktok-talent-helper-styles';
   style.textContent = `
-    .helper-bubbles-container {
-      position: absolute !important;
-      inset: 0 !important;
-      z-index: 120;
-      display: block;
-      box-sizing: border-box;
-      overflow: hidden;
-      border-radius: inherit;
-      pointer-events: none;
-    }
-    .helper-bubble {
-      position: absolute; z-index: 100;
-      background: rgba(255, 255, 255, 0.16); backdrop-filter: blur(12px) saturate(140%);
-      -webkit-backdrop-filter: blur(12px) saturate(140%); border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 20px; color: #ffffff; padding: 3px 8px; font-size: 10px; font-weight: 700;
-      font-family: system-ui, -apple-system, sans-serif; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); pointer-events: none;
-      display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;
-      letter-spacing: 0.2px;
-    }
-    /* 互动率小胶囊 - 采用 TikTok 玫红半透明微光 */
-    .helper-bubble-rate {
-      right: 8px; top: 8px;
-      background: rgba(254, 44, 85, 0.25); border-color: rgba(254, 44, 85, 0.4);
-      color: #ffeff2;
-    }
-    .helper-bubble-likes { right: 8px; bottom: 60px; }
-    .helper-bubble-comments { right: 8px; bottom: 34px; }
-    .helper-bubble-date { right: 8px; bottom: 8px; }
-    .helper-bubble-views {
-      left: 8px;
-      top: 42px;
-      background: rgba(37, 244, 238, 0.22);
-      border-color: rgba(37, 244, 238, 0.38);
-      color: #efffff;
-    }
-    .helper-bubble-commerce {
-      left: 8px;
-      top: 74px;
-      gap: 5px;
-      padding: 3px 9px;
-      font-size: 10px;
-      letter-spacing: 0.3px;
-      pointer-events: none;
-    }
-    .helper-bubble-commerce.is-commerce {
-      background: rgba(255, 186, 73, 0.28);
-      border-color: rgba(255, 186, 73, 0.52);
-      color: #fff4d7;
-    }
-    .helper-bubble-commerce.is-normal {
-      background: rgba(12, 14, 20, 0.45);
-      border-color: rgba(255, 255, 255, 0.22);
-      color: rgba(255, 255, 255, 0.78);
-    }
-    .helper-bubble-commerce.is-unknown {
-      background: rgba(37, 244, 238, 0.14);
-      border-color: rgba(37, 244, 238, 0.28);
-      color: rgba(224, 255, 253, 0.86);
-    }
-    .helper-commerce-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 999px;
-      background: currentColor;
-      box-shadow: 0 0 8px currentColor;
-      flex: 0 0 auto;
-    }
-    .helper-select-toggle {
-      position: absolute;
-      left: 8px;
-      bottom: 8px;
-      width: 24px;
-      height: 24px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.28);
-      background: rgba(12,12,16,0.55);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      pointer-events: auto;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.22);
-      transition: all 0.18s ease;
-    }
-    .helper-card-direct-download,
-    .helper-card-preview-video,
-    .helper-select-toggle {
-      pointer-events: auto !important;
-    }
-    .helper-select-toggle input {
-      appearance: none;
-      width: 12px;
-      height: 12px;
-      border-radius: 999px;
-      border: 1.5px solid rgba(255,255,255,0.95);
-      background: transparent;
-      margin: 0;
-      pointer-events: none;
-      transition: all 0.18s ease;
-    }
-    .helper-select-toggle.is-visible {
-      display: flex;
-    }
-    .helper-select-toggle.is-selected {
-      background: linear-gradient(135deg, rgba(254,44,85,0.95), rgba(37,244,238,0.82));
-      border-color: rgba(255,255,255,0.4);
-    }
-    .helper-select-toggle.is-selected input {
-      background: #fff;
-      border-color: #fff;
-      box-shadow: inset 0 0 0 2px rgba(254,44,85,0.85);
-    }
-    .helper-video-preview-backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 2147483647;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      box-sizing: border-box;
-      background: rgba(3, 5, 10, 0.72);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-    }
-    .helper-video-preview-dialog {
-      width: min(460px, calc(100vw - 48px));
-      max-height: calc(100vh - 48px);
-      overflow: hidden;
-      border-radius: 24px;
-      background: linear-gradient(180deg, rgba(22, 24, 31, 0.96), rgba(10, 12, 18, 0.98));
-      border: 1px solid rgba(255,255,255,0.16);
-      box-shadow: 0 28px 80px rgba(0,0,0,0.48);
-      color: #fff;
-      font-family: system-ui, -apple-system, sans-serif;
-      display: flex;
-      flex-direction: column;
-    }
-    .helper-video-preview-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 14px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-    .helper-video-preview-title {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .helper-video-preview-close {
-      width: 30px;
-      height: 30px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.16);
-      background: rgba(255,255,255,0.08);
-      color: #fff;
-      cursor: pointer;
-      font-size: 18px;
-      line-height: 1;
-      flex: 0 0 auto;
-    }
-    .helper-video-preview-body {
-      padding: 14px;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-    .helper-video-preview-player {
-      position: relative;
-      overflow: hidden;
-      border-radius: 18px;
-      background: #000;
-      min-height: 220px;
-    }
-    .helper-video-preview-video {
-      width: 100%;
-      max-height: min(48vh, 520px);
-      display: block;
-      background: #000;
-      object-fit: contain;
-    }
-    .helper-video-preview-player.is-loading .helper-video-preview-video {
-      min-height: 220px;
-    }
-    .helper-video-preview-media-status {
-      position: absolute;
-      left: 12px;
-      right: 12px;
-      bottom: 12px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      background: rgba(10,12,18,0.72);
-      color: rgba(255,255,255,0.82);
-      font-size: 12px;
-      line-height: 1.4;
-      text-align: center;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      pointer-events: none;
-    }
-    .helper-video-preview-media-status:empty {
-      display: none;
-    }
-    .helper-video-preview-synced-subtitle {
-      position: absolute;
-      left: 14px;
-      right: 14px;
-      bottom: 62px;
-      min-height: 0;
-      display: none;
-      justify-content: center;
-      pointer-events: none;
-      z-index: 2;
-    }
-    .helper-video-preview-synced-subtitle.is-visible {
-      display: flex;
-    }
-    .helper-video-preview-synced-subtitle span {
-      max-width: min(92%, 680px);
-      padding: 7px 12px;
-      border-radius: 12px;
-      background: rgba(0,0,0,0.62);
-      color: #fff;
-      font-size: 15px;
-      font-weight: 800;
-      line-height: 1.45;
-      text-align: center;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-      white-space: pre-wrap;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-    }
-    .helper-video-preview-url {
-      margin-top: 10px;
-      color: rgba(255,255,255,0.48);
-      font-size: 11px;
-      line-height: 1.4;
-      word-break: break-all;
-      max-height: 30px;
-      overflow: auto;
-    }
-    .helper-video-subtitles {
-      margin-top: 12px;
-      padding: 12px;
-      border-radius: 16px;
-      border: 1px solid rgba(37,244,238,0.16);
-      background:
-        radial-gradient(circle at 12% 0%, rgba(37,244,238,0.12), transparent 38%),
-        rgba(255,255,255,0.06);
-      color: rgba(255,255,255,0.82);
-    }
-    .helper-video-subtitles-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 8px;
-      font-size: 12px;
-      font-weight: 900;
-      color: #fff;
-    }
-    .helper-video-subtitles-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: rgba(37,244,238,0.9);
-      font-size: 11px;
-      font-weight: 800;
-      white-space: nowrap;
-    }
-    .helper-video-subtitles-text,
-    .helper-video-subtitles-original {
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 12px;
-      line-height: 1.65;
-      max-height: 150px;
-      overflow: auto;
-    }
-    .helper-video-subtitles-original {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255,255,255,0.08);
-      color: rgba(255,255,255,0.52);
-      font-size: 11px;
-      max-height: 88px;
-    }
-    .helper-video-subtitles-actions {
-      margin-top: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-    .helper-video-subtitles-btn {
-      height: 30px;
-      padding: 0 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(37,244,238,0.24);
-      background: rgba(37,244,238,0.1);
-      color: rgba(255,255,255,0.92);
-      font-size: 11px;
-      font-weight: 800;
-      cursor: pointer !important;
-    }
-    .helper-video-subtitles-btn:hover {
-      background: rgba(37,244,238,0.18);
-    }
-    .helper-video-subtitles-hint {
-      color: rgba(255,255,255,0.48);
-      font-size: 11px;
-      line-height: 1.45;
-    }
-    .helper-video-products {
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid rgba(255,255,255,0.1);
-    }
-    .helper-video-products-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-      color: rgba(255,255,255,0.9);
-      font-size: 12px;
-      font-weight: 800;
-    }
-    .helper-video-products-count {
-      color: rgba(37,244,238,0.9);
-      font-size: 11px;
-      font-weight: 700;
-    }
-    .helper-video-products-empty {
-      color: rgba(255,255,255,0.52);
-      font-size: 12px;
-      line-height: 1.5;
-      padding: 10px;
-      border-radius: 12px;
-      background: rgba(255,255,255,0.06);
-    }
-    .helper-video-products-progress {
-      margin-bottom: 8px;
-      color: rgba(255,255,255,0.72);
-      font-size: 12px;
-      line-height: 1.45;
-      padding: 9px 10px;
-      border-radius: 12px;
-      background: rgba(37,244,238,0.08);
-      border: 1px solid rgba(37,244,238,0.16);
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .helper-video-products-spinner {
-      width: 12px;
-      height: 12px;
-      border-radius: 999px;
-      border: 2px solid rgba(255,255,255,0.18);
-      border-top-color: #25f4ee;
-      flex: 0 0 auto;
-      display: inline-block;
-      animation: helperSpin 0.75s linear infinite;
-    }
-    @keyframes helperSpin {
-      to { transform: rotate(360deg); }
-    }
-    .helper-video-products-meta {
-      margin-top: 6px;
-      color: rgba(37,244,238,0.72);
-      font-size: 11px;
-    }
-    .helper-video-product-list {
-      display: grid;
-      gap: 8px;
-      max-height: min(28vh, 240px);
-      overflow: auto;
-      padding-right: 2px;
-    }
-    .helper-video-product-card {
-      display: grid;
-      grid-template-columns: 46px minmax(0, 1fr);
-      gap: 10px;
-      align-items: center;
-      padding: 8px;
-      border-radius: 14px;
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.1);
-      color: #fff;
-      text-decoration: none;
-    }
-    .helper-video-product-card:hover {
-      background: rgba(37,244,238,0.11);
-      border-color: rgba(37,244,238,0.22);
-    }
-    .helper-video-product-img {
-      width: 46px;
-      height: 46px;
-      border-radius: 10px;
-      object-fit: cover;
-      background: rgba(255,255,255,0.08);
-    }
-    .helper-video-product-info {
-      min-width: 0;
-    }
-    .helper-video-product-name {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 12px;
-      font-weight: 700;
-      color: #fff;
-    }
-    .helper-video-product-meta {
-      margin-top: 4px;
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      min-width: 0;
-      color: rgba(255,255,255,0.54);
-      font-size: 11px;
-    }
-    .helper-video-product-price {
-      color: #25f4ee;
-      font-weight: 800;
-    }
-    .helper-video-product-origin-price {
-      color: rgba(255,255,255,0.38);
-      text-decoration: line-through;
-    }
-    .helper-video-product-extra {
-      margin-top: 4px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      min-width: 0;
-      color: rgba(255,255,255,0.46);
-      font-size: 10.5px;
-      line-height: 1.35;
-    }
-    @media (max-width: 640px) {
-      .helper-video-preview-backdrop { padding: 12px; }
-      .helper-video-preview-dialog { width: calc(100vw - 24px); max-height: calc(100vh - 24px); border-radius: 18px; }
-      .helper-video-preview-body { padding: 10px; }
-      .helper-video-preview-video { max-height: 42vh; }
-      .helper-video-product-list { max-height: 30vh; }
-    }
-    .toolbar-date-group {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .toolbar-date-chip {
-      min-width: 136px;
-      height: 34px;
-      box-sizing: border-box;
-      padding: 0 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.14);
-      background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-      color: #f5f7fb;
-      font-size: 12px;
-      outline: none;
-      transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      user-select: none;
-    }
-    .toolbar-date-chip:hover,
-    .toolbar-date-chip:focus {
-      border-color: rgba(255,255,255,0.28);
-      background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
-      transform: translateY(-1px);
-    }
-    .toolbar-date-chip .toolbar-date-label {
-      color: #f5f7fb;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      pointer-events: none;
-    }
-    .toolbar-date-chip .toolbar-date-icon {
-      opacity: 0.86;
-      font-size: 13px;
-      flex: 0 0 auto;
-      pointer-events: none;
-    }
-    .toolbar-date-separator {
-      color: rgba(255,255,255,0.5);
-      font-size: 12px;
-      user-select: none;
-    }
-    .toolbar-date-clear {
-      width: 28px;
-      height: 28px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(255,255,255,0.08);
-      color: #fff;
-      cursor: pointer;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      line-height: 1;
-    }
-    .toolbar-date-clear.is-visible {
-      display: inline-flex;
-    }
-    .toolbar-calendar-popover {
-      position: fixed;
-      z-index: 2147483647;
-      width: 252px;
-      padding: 12px;
-      border-radius: 14px;
-      background: rgba(16, 16, 22, 0.96);
-      border: 1px solid rgba(255,255,255,0.16);
-      box-shadow: 0 18px 42px rgba(0,0,0,0.36);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      display: none;
-      color: #fff;
-      font-family: system-ui, -apple-system, sans-serif;
-    }
-    .toolbar-calendar-popover.is-open {
-      display: block;
-    }
-    .calendar-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
-    }
-    .calendar-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #f7f8fb;
-    }
-    .calendar-nav {
-      width: 28px;
-      height: 28px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(255,255,255,0.08);
-      color: #fff;
-      cursor: pointer;
-    }
-    .calendar-weekdays,
-    .calendar-grid {
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 4px;
-    }
-    .calendar-weekdays span {
-      text-align: center;
-      font-size: 11px;
-      color: rgba(255,255,255,0.52);
-      padding: 4px 0;
-    }
-    .calendar-day {
-      height: 28px;
-      border-radius: 8px;
-      border: 1px solid transparent;
-      background: transparent;
-      color: #f7f8fb;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .calendar-day:hover {
-      background: rgba(255,255,255,0.12);
-      border-color: rgba(255,255,255,0.16);
-    }
-    .calendar-day.is-muted {
-      color: rgba(255,255,255,0.26);
-    }
-    .calendar-day.is-selected {
-      color: #071018;
-      font-weight: 800;
-      background: linear-gradient(135deg, #25f4ee, #ffffff);
-    }
-    .toolbar-selection-badge {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      min-width: 64px;
-      height: 34px;
-      padding: 0 12px;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.14);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 600;
-      box-sizing: border-box;
-    }
-    .toolbar-selection-badge.is-visible {
-      display: inline-flex;
-    }
+    /* 全局变量与主题体系 - 融入极致美学与色彩科学 */
     #tiktok-talent-helper-toolbar {
-      --th-bg: rgba(255,255,255,0.96);
-      --th-bg-strong: rgba(255,255,255,0.99);
-      --th-surface: rgba(22,104,92,0.07);
-      --th-surface-strong: rgba(22,104,92,0.12);
-      --th-border: rgba(30,56,51,0.11);
-      --th-text: #26332f;
-      --th-muted: rgba(38,51,47,0.56);
-      --th-accent: #0b6c61;
-      --th-accent-2: #45b997;
-      --th-button-text: #ffffff;
-      --th-shadow: rgba(38,51,47,0.16);
-      --th-glow: rgba(69,185,151,0.2);
+      --th-bg: rgba(10, 11, 14, 0.72);
+      --th-bg-strong: rgba(15, 17, 22, 0.88);
+      --th-surface: rgba(255, 255, 255, 0.05);
+      --th-surface-strong: rgba(255, 255, 255, 0.09);
+      --th-border: rgba(255, 255, 255, 0.08);
+      --th-text: #f1f5f9;
+      --th-muted: #94a3b8;
+      --th-accent: #1be3dc;
+      --th-accent-2: #f22552;
+      --th-button-text: #0f172a;
+      --th-shadow: rgba(0, 0, 0, 0.4);
+      --th-glow: rgba(27, 227, 220, 0.25);
+      --th-border-glow: linear-gradient(135deg, rgba(27, 227, 220, 0.4), rgba(242, 37, 82, 0.4));
+
+      /* 定位与基础布局 */
       position: fixed;
-      right: 10px;
-      bottom: 18px;
-      width: min(420px, calc(100vw - 20px));
       z-index: 2147483647 !important;
       pointer-events: auto !important;
       display: flex;
       flex-direction: column;
-      gap: 9px;
-      padding: 10px;
       box-sizing: border-box;
       color: var(--th-text);
-      font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif;
-      border-radius: 18px;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+
+      /* 极致丝滑过渡：宽高、padding和圆角的缓动曲线一气呵成 */
+      width: 380px;
+      max-width: calc(100vw - 20px);
+      padding: 12px;
+      border-radius: 20px;
       border: 1px solid var(--th-border);
       background: linear-gradient(180deg, var(--th-bg-strong), var(--th-bg));
-      box-shadow: 0 10px 30px var(--th-shadow), 0 1px 0 rgba(255,255,255,0.9) inset;
-      backdrop-filter: blur(20px) saturate(115%);
-      -webkit-backdrop-filter: blur(20px) saturate(115%);
-      transition: left 0.2s ease, right 0.2s ease, top 0.2s ease, bottom 0.2s ease, width 0.16s ease, height 0.16s ease, padding 0.16s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 20px 50px var(--th-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(24px) saturate(140%);
+      -webkit-backdrop-filter: blur(24px) saturate(140%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                  width 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                  padding 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-radius 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                  background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
       touch-action: none;
     }
+
+    /* 极细流光发光边缘 - 极致雕琢 */
+    #tiktok-talent-helper-toolbar::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: var(--th-border-glow);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* 曜石主题 (默认主题已经在基础变量中定义) */
+    #tiktok-talent-helper-toolbar[data-theme="neon"] {
+      /* 使用曜石默认变量 */
+    }
+
+    /* 象牙主题 - 雪域冷玉极简风格 */
+    #tiktok-talent-helper-toolbar[data-theme="paper"] {
+      --th-bg: rgba(244, 246, 249, 0.82);
+      --th-bg-strong: rgba(255, 255, 255, 0.94);
+      --th-surface: rgba(15, 23, 42, 0.04);
+      --th-surface-strong: rgba(15, 23, 42, 0.08);
+      --th-border: rgba(15, 23, 42, 0.06);
+      --th-text: #1e293b;
+      --th-muted: #64748b;
+      --th-accent: #0f766e;
+      --th-accent-2: #be123c;
+      --th-button-text: #ffffff;
+      --th-shadow: rgba(15, 23, 42, 0.08);
+      --th-glow: rgba(15, 118, 110, 0.15);
+      --th-border-glow: linear-gradient(135deg, rgba(15, 118, 110, 0.2), rgba(190, 18, 60, 0.2));
+    }
+    #tiktok-talent-helper-toolbar[data-theme="paper"]::after {
+      background: var(--th-border-glow);
+      opacity: 0.5;
+    }
+
+    /* 青瓷主题 - 翡翠流光玉石质感 */
+    #tiktok-talent-helper-toolbar[data-theme="ocean"] {
+      --th-bg: rgba(3, 14, 12, 0.76);
+      --th-bg-strong: rgba(6, 24, 21, 0.9);
+      --th-surface: rgba(255, 255, 255, 0.04);
+      --th-surface-strong: rgba(255, 255, 255, 0.08);
+      --th-border: rgba(255, 255, 255, 0.07);
+      --th-text: #e2f7f3;
+      --th-muted: #80a69f;
+      --th-accent: #14b8a6;
+      --th-accent-2: #eab308;
+      --th-button-text: #022c22;
+      --th-shadow: rgba(0, 0, 0, 0.35);
+      --th-glow: rgba(20, 184, 166, 0.25);
+      --th-border-glow: linear-gradient(135deg, rgba(20, 184, 166, 0.4), rgba(234, 179, 8, 0.3));
+    }
+
+    /* 琥珀主题 - 奢华暖金暗调质感 */
+    #tiktok-talent-helper-toolbar[data-theme="ember"] {
+      --th-bg: rgba(10, 6, 4, 0.78);
+      --th-bg-strong: rgba(22, 14, 10, 0.92);
+      --th-surface: rgba(255, 255, 255, 0.04);
+      --th-surface-strong: rgba(255, 255, 255, 0.08);
+      --th-border: rgba(255, 255, 255, 0.08);
+      --th-text: #fef3c7;
+      --th-muted: #b45309;
+      --th-accent: #d97706;
+      --th-accent-2: #f59e0b;
+      --th-button-text: #1e0b00;
+      --th-shadow: rgba(0, 0, 0, 0.42);
+      --th-glow: rgba(217, 119, 6, 0.25);
+      --th-border-glow: linear-gradient(135deg, rgba(217, 119, 6, 0.4), rgba(245, 158, 11, 0.3));
+    }
+
+    /* 侧边栏拖拽、折叠与隐藏的过渡类定义 */
     #tiktok-talent-helper-toolbar.is-dragging {
       transition: none !important;
       user-select: none !important;
     }
-    #tiktok-talent-helper-toolbar.is-collapsed:not(.is-hidden) {
-      box-shadow: 0 7px 24px color-mix(in srgb, var(--th-shadow) 78%, transparent), 0 1px 0 rgba(255,255,255,0.96) inset;
+    #tiktok-talent-helper-toolbar.is-disabled {
+      display: none !important;
+    }
+    #tiktok-talent-helper-toolbar.is-collapsed {
+      width: 42px;
+      height: 42px;
+      max-width: none;
+      padding: 0;
+      border-radius: 50%;
+      overflow: visible;
+      border-color: transparent;
+      background: transparent;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.24);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    #tiktok-talent-helper-toolbar.is-collapsed::after {
+      display: none;
     }
     #tiktok-talent-helper-toolbar.is-hidden {
       width: 42px !important;
-      min-width: 42px !important;
-      height: 58px !important;
+      height: 42px !important;
       padding: 0 !important;
-      gap: 0 !important;
-      box-shadow: 0 6px 20px color-mix(in srgb, var(--th-shadow) 72%, transparent);
+      overflow: visible !important;
+      border-radius: 50% !important;
+      background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      border-color: transparent !important;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.24) !important;
     }
     #tiktok-talent-helper-toolbar.is-hidden[data-side="left"] {
-      border-radius: 0 999px 999px 0 !important;
+      border-radius: 50% !important;
     }
-    #tiktok-talent-helper-toolbar.is-hidden[data-side="right"] {
-      border-radius: 999px 0 0 999px !important;
+    #tiktok-talent-helper-toolbar.is-hidden::after {
+      display: none;
     }
-    #tiktok-talent-helper-toolbar[data-theme="paper"] {
-      --th-bg: rgba(248,250,249,0.96);
-      --th-bg-strong: rgba(255,255,255,0.99);
-      --th-surface: rgba(22,104,92,0.07);
-      --th-surface-strong: rgba(22,104,92,0.12);
-      --th-border: rgba(30,56,51,0.11);
-      --th-text: #26332f;
-      --th-muted: rgba(38,51,47,0.56);
-      --th-accent: #0b6c61;
-      --th-accent-2: #45b997;
-      --th-button-text: #ffffff;
-      --th-shadow: rgba(38,51,47,0.16);
-      --th-glow: rgba(69,185,151,0.2);
+
+    /* 隐藏模式下头部和主体的隐藏控制 */
+    #tiktok-talent-helper-toolbar.is-hidden .toolbar-compact-head,
+    #tiktok-talent-helper-toolbar.is-hidden .toolbar-panel-body {
+      display: none !important;
     }
-    #tiktok-talent-helper-toolbar[data-theme="ocean"] {
-      --th-bg: rgba(6, 22, 21, 0.9);
-      --th-bg-strong: rgba(12, 43, 38, 0.88);
-      --th-surface: rgba(217,246,232,0.08);
-      --th-surface-strong: rgba(217,246,232,0.14);
-      --th-border: rgba(187,230,216,0.2);
-      --th-text: #f3fbf5;
-      --th-muted: rgba(243,251,245,0.58);
-      --th-accent: #9bcfbd;
-      --th-accent-2: #d9b86d;
-      --th-button-text: #071b18;
-      --th-shadow: rgba(0, 52, 46, 0.36);
-      --th-glow: rgba(155,207,189,0.2);
+    #tiktok-talent-helper-toolbar.is-hidden .toolbar-edge-tab {
+      display: flex !important;
     }
-    #tiktok-talent-helper-toolbar[data-theme="ember"] {
-      --th-bg: rgba(23, 15, 10, 0.91);
-      --th-bg-strong: rgba(55, 31, 16, 0.88);
-      --th-surface: rgba(246,196,133,0.08);
-      --th-surface-strong: rgba(246,196,133,0.14);
-      --th-border: rgba(247,198,134,0.2);
-      --th-text: #fff6e9;
-      --th-muted: rgba(255,246,233,0.58);
-      --th-accent: #c98d4b;
-      --th-accent-2: #f1cc7c;
-      --th-button-text: #261408;
-      --th-shadow: rgba(52,23,6,0.38);
-      --th-glow: rgba(201,141,75,0.24);
-    }
+
+    /* 头部及基础文字布局 */
     .toolbar-compact-head {
       display: flex !important;
       align-items: center !important;
       justify-content: space-between !important;
-      gap: 7px !important;
-      min-height: 36px;
+      gap: 8px !important;
+      min-height: 32px;
+      width: 100%;
+      z-index: 2;
     }
     .toolbar-drag-handle {
-      width: 36px !important;
-      height: 36px !important;
-      padding: 3px !important;
+      width: 32px !important;
+      height: 32px !important;
+      padding: 5px !important;
       flex: 0 0 auto !important;
-      border: 1px solid color-mix(in srgb, var(--th-accent) 13%, transparent) !important;
-      border-radius: 999px !important;
-      background: color-mix(in srgb, var(--th-accent-2) 10%, white) !important;
+      border: 1px solid var(--th-border) !important;
+      border-radius: 50% !important;
+      background: var(--th-surface) !important;
       cursor: grab !important;
       touch-action: none;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      position: relative;
+      overflow: visible;
+      transition: background 0.2s ease, transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
     }
     .toolbar-drag-handle:hover {
-      background: color-mix(in srgb, var(--th-accent-2) 17%, white) !important;
-      transform: scale(1.03);
+      background: var(--th-surface-strong) !important;
+      transform: scale(1.05);
     }
     #tiktok-talent-helper-toolbar.is-dragging .toolbar-drag-handle {
       cursor: grabbing !important;
+    }
+    .toolbar-logo-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      pointer-events: none;
+    }
+    .toolbar-orb-count {
+      display: none;
+      position: absolute;
+      top: -4px;
+      right: -5px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 4px;
+      box-sizing: border-box;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid color-mix(in srgb, var(--th-bg-strong) 88%, transparent);
+      border-radius: 999px;
+      background: var(--th-accent-2);
+      color: #ffffff;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28);
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1;
+      pointer-events: none;
+    }
+    #tiktok-talent-helper-toolbar.is-collapsed .toolbar-compact-head {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      gap: 0 !important;
+    }
+    #tiktok-talent-helper-toolbar.is-collapsed .toolbar-drag-handle {
+      width: 100% !important;
+      height: 100% !important;
+      padding: 0 !important;
+      border: 0 !important;
+      background: transparent !important;
+      cursor: grab !important;
+    }
+    #tiktok-talent-helper-toolbar.is-collapsed .toolbar-drag-handle:hover {
+      background: rgba(255, 255, 255, 0.05) !important;
+      transform: scale(1.04);
+    }
+    #tiktok-talent-helper-toolbar.is-collapsed .toolbar-logo-image {
+      filter: saturate(1.04) contrast(1.03);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.48);
+    }
+    #tiktok-talent-helper-toolbar.is-collapsed .toolbar-orb-count {
+      display: inline-flex;
+    }
+    #tiktok-talent-helper-toolbar.is-collapsed .toolbar-panel-toggle,
+    #tiktok-talent-helper-toolbar.is-collapsed .toolbar-head-actions {
+      display: none !important;
     }
     .toolbar-panel-toggle {
       display: flex !important;
@@ -893,72 +427,79 @@ function injectStyles() {
       cursor: pointer !important;
       text-align: left !important;
     }
-    .toolbar-logo-image {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      pointer-events: none;
-    }
     .toolbar-title {
       font-weight: 800;
-      font-size: 14px;
-      letter-spacing: 0;
+      font-size: 13px;
+      letter-spacing: 0.3px;
       white-space: nowrap;
       color: var(--th-text);
     }
     .toolbar-count-label {
-      min-width: 24px;
-      height: 25px;
-      padding: 0 8px;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 3px;
       border-radius: 999px;
       background: var(--th-surface);
-      font-size: 11px;
+      border: 1px solid var(--th-border);
+      font-size: 9.5px;
       color: var(--th-muted);
       white-space: nowrap;
     }
     .toolbar-card-count {
-      font-weight: 900 !important;
-      color: var(--th-accent-2) !important;
+      font-weight: 800 !important;
+      color: var(--th-accent) !important;
     }
     .toolbar-count-context {
       color: var(--th-muted);
-      font-weight: 600;
+      font-weight: 500;
     }
+
+    /* 头部控制按钮 */
     .toolbar-head-actions {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       flex: 0 0 auto;
     }
     .toolbar-panel-close,
     .toolbar-hide-btn {
-      width: 34px !important;
-      height: 34px !important;
+      width: 28px !important;
+      height: 28px !important;
       padding: 0 !important;
-      border-radius: 999px !important;
+      border-radius: 50% !important;
       border: 1px solid var(--th-border) !important;
       background: var(--th-surface) !important;
       color: var(--th-text) !important;
       cursor: pointer !important;
       flex: 0 0 auto !important;
-      font-size: 17px !important;
+      font-size: 14px !important;
       line-height: 1 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
     }
     .toolbar-panel-close:hover,
-    .toolbar-hide-btn:hover,
-    .toolbar-panel-toggle:hover {
+    .toolbar-hide-btn:hover {
       background: var(--th-surface-strong) !important;
+      border-color: color-mix(in srgb, var(--th-accent) 30%, var(--th-border)) !important;
+      transform: scale(1.05);
     }
+    .toolbar-panel-close:active,
+    .toolbar-hide-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* 隐藏模式下的边缘胶囊Tab，提供优雅的浮现和回弹 */
     .toolbar-edge-tab {
       display: none !important;
       width: 100% !important;
       height: 100% !important;
-      padding: 8px 5px !important;
+      padding: 0 !important;
       border: 0 !important;
       border-radius: inherit !important;
       background: transparent !important;
@@ -967,24 +508,22 @@ function injectStyles() {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 2px;
-    }
-    #tiktok-talent-helper-toolbar.is-hidden .toolbar-compact-head,
-    #tiktok-talent-helper-toolbar.is-hidden .toolbar-panel-body {
-      display: none !important;
-    }
-    #tiktok-talent-helper-toolbar.is-hidden .toolbar-edge-tab {
-      display: flex !important;
+      position: relative;
+      overflow: visible;
+      gap: 0;
     }
     .toolbar-edge-arrow {
-      font-size: 13px;
-      line-height: 1;
-      color: var(--th-accent-2);
+      display: none;
     }
     .toolbar-edge-logo {
-      width: 28px;
-      height: 28px;
-      object-fit: contain;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      filter: saturate(1.1) contrast(1.08);
+    }
+    #tiktok-talent-helper-toolbar.is-hidden .toolbar-edge-count {
+      display: inline-flex;
     }
     #tiktok-talent-helper-toolbar[data-side="left"] .toolbar-edge-arrow::before {
       content: "›";
@@ -992,71 +531,379 @@ function injectStyles() {
     #tiktok-talent-helper-toolbar[data-side="right"] .toolbar-edge-arrow::before {
       content: "‹";
     }
-    .toolbar-panel-body {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
+    #tiktok-talent-helper-toolbar.is-hidden:hover .toolbar-edge-arrow {
+      transform: scale(1.18);
     }
+
+    /* 面板主体的折叠展开过渡 - 基于 CSS Grid 完美无缝过渡 */
+    .toolbar-panel-body {
+      display: grid;
+      grid-template-rows: 1fr;
+      opacity: 1;
+      visibility: visible;
+      transition: grid-template-rows 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.25s ease,
+                  visibility 0.25s ease,
+                  margin-top 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      margin-top: 10px;
+      width: 100%;
+      overflow: hidden;
+      z-index: 2;
+    }
+    .is-collapsed .toolbar-panel-body {
+      grid-template-rows: 0fr;
+      opacity: 0;
+      visibility: hidden;
+      margin-top: 0;
+      pointer-events: none;
+    }
+    .toolbar-panel-inner {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+    }
+
+    /* 区域布局 */
     .toolbar-date-group,
     .toolbar-selection-actions,
     .toolbar-utility-row {
-      flex: 1 0 100%;
-    }
-    .toolbar-selection-actions,
-    .toolbar-utility-row {
+      width: 100%;
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
       gap: 8px;
     }
     .toolbar-selection-actions {
       display: none;
+      padding: 4px 0;
+      flex-wrap: wrap;
     }
     #tiktok-talent-helper-toolbar.is-selection-mode .toolbar-selection-actions {
       display: flex;
     }
     .toolbar-selection-actions .toolbar-action-btn {
-      flex: 1 1 calc((100% - 102px - 24px) / 3);
-      min-width: 104px;
+      flex: 1 1 0%;
+      min-width: 96px;
       justify-content: center;
     }
     .toolbar-selection-actions .toolbar-selection-badge {
       flex: 0 0 auto;
-      min-width: 86px;
     }
-    .toolbar-utility-row .toolbar-sort-select {
-      flex: 1 1 170px;
+
+    /* 日期选择组设计 */
+    .toolbar-date-group {
+      justify-content: flex-start;
     }
-    .toolbar-utility-row .toolbar-action-btn {
-      flex: 0 1 auto;
-    }
-    .toolbar-export-option {
-      height: 34px;
-      flex: 0 0 auto;
+    .toolbar-date-chip {
+      flex: 1;
+      height: 32px;
+      box-sizing: border-box;
+      padding: 0 10px;
+      border-radius: 10px;
+      border: 1px solid var(--th-border) !important;
+      background: var(--th-surface) !important;
+      color: var(--th-text) !important;
+      font-size: 11px;
+      outline: none;
+      transition: border-color 0.2s ease, transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), background 0.2s ease;
+      cursor: pointer;
       display: inline-flex;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
-      padding: 0 10px;
-      border-radius: 12px;
+      user-select: none;
+    }
+    .toolbar-date-chip:hover,
+    .toolbar-date-chip:focus {
+      border-color: color-mix(in srgb, var(--th-accent) 45%, var(--th-border)) !important;
+      background: var(--th-surface-strong) !important;
+      transform: translateY(-1px);
+    }
+    .toolbar-date-chip:active {
+      transform: translateY(0);
+    }
+    .toolbar-date-chip .toolbar-date-label {
+      color: var(--th-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+    }
+    .toolbar-date-chip .toolbar-date-icon {
+      opacity: 0.6;
+      font-size: 11px;
+      flex: 0 0 auto;
+      pointer-events: none;
+    }
+    .toolbar-date-separator {
+      color: var(--th-muted);
+      font-size: 11px;
+      user-select: none;
+    }
+    .toolbar-date-clear {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid var(--th-border) !important;
+      background: var(--th-surface) !important;
+      color: var(--th-text) !important;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      line-height: 1;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .toolbar-date-clear:hover {
+      background: var(--th-surface-strong) !important;
+      border-color: color-mix(in srgb, var(--th-accent) 45%, var(--th-border)) !important;
+    }
+    .toolbar-date-clear.is-visible {
+      display: inline-flex;
+    }
+
+    /* 日历弹出框 (DatePicker Popover) - 顶级 3D 水晶微缩放弹出效果 */
+    #tiktok-talent-helper-calendar {
+      --th-bg: rgba(12, 13, 18, 0.94);
+      --th-surface: rgba(255, 255, 255, 0.05);
+      --th-border: rgba(255, 255, 255, 0.08);
+      --th-text: #f5f1e8;
+      --th-muted: rgba(245, 241, 232, 0.58);
+      --th-accent: #1be3dc;
+      --th-accent-2: #f22552;
+      --th-button-text: #0f172a;
+      --th-shadow: rgba(0, 0, 0, 0.5);
+
+      position: fixed;
+      z-index: 2147483647;
+      width: 260px;
+      padding: 12px;
+      border-radius: 16px;
+      background: var(--th-bg);
+      border: 1px solid var(--th-border);
+      box-shadow: 0 20px 60px var(--th-shadow);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      display: none;
+      color: var(--th-text);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+
+      /* 弹出动画初始化状态 */
+      opacity: 0;
+      transform: scale(0.92) translateY(8px);
+      transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #tiktok-talent-helper-calendar.is-open {
+      display: block;
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+
+    /* 弹出日历主题定制 */
+    #tiktok-talent-helper-calendar[data-theme="paper"] {
+      --th-bg: rgba(255, 252, 244, 0.96);
+      --th-surface: rgba(15, 23, 42, 0.04);
+      --th-border: rgba(15, 23, 42, 0.07);
+      --th-text: #1e293b;
+      --th-muted: #64748b;
+      --th-accent: #0f766e;
+      --th-accent-2: #be123c;
+      --th-button-text: #ffffff;
+      --th-shadow: rgba(15, 23, 42, 0.12);
+    }
+    #tiktok-talent-helper-calendar[data-theme="ocean"] {
+      --th-bg: rgba(3, 14, 12, 0.95);
+      --th-surface: rgba(255, 255, 255, 0.04);
+      --th-border: rgba(255, 255, 255, 0.08);
+      --th-text: #e2f7f3;
+      --th-muted: #80a69f;
+      --th-accent: #14b8a6;
+      --th-accent-2: #eab308;
+      --th-button-text: #022c22;
+      --th-shadow: rgba(0, 0, 0, 0.4);
+    }
+    #tiktok-talent-helper-calendar[data-theme="ember"] {
+      --th-bg: rgba(10, 6, 4, 0.95);
+      --th-surface: rgba(255, 255, 255, 0.04);
+      --th-border: rgba(255, 255, 255, 0.08);
+      --th-text: #fef3c7;
+      --th-muted: #b45309;
+      --th-accent: #d97706;
+      --th-accent-2: #f59e0b;
+      --th-button-text: #1e0b00;
+      --th-shadow: rgba(0, 0, 0, 0.45);
+    }
+
+    .calendar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .calendar-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--th-text);
+    }
+    .calendar-nav {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
       border: 1px solid var(--th-border);
       background: var(--th-surface);
       color: var(--th-text);
-      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
+    }
+    .calendar-nav:hover {
+      background: var(--th-surface-strong);
+    }
+    .calendar-weekdays,
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .calendar-weekdays span {
+      text-align: center;
+      font-size: 10px;
+      color: var(--th-muted);
+      padding: 2px 0;
+      font-weight: 600;
+    }
+    .calendar-day {
+      height: 26px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--th-text);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .calendar-day:hover {
+      background: var(--th-surface);
+      border-color: var(--th-border);
+    }
+    .calendar-day.is-muted {
+      color: color-mix(in srgb, var(--th-muted) 45%, transparent);
+    }
+    .calendar-day.is-selected {
+      color: var(--th-button-text);
       font-weight: 800;
+      background: linear-gradient(135deg, var(--th-accent), var(--th-accent-2));
+    }
+
+    /* 按钮与选择框基础设计 */
+    .toolbar-action-btn,
+    .toolbar-sort-select {
+      height: 32px;
+      border-radius: 10px;
+      border: 1px solid var(--th-border) !important;
+      background: var(--th-surface) !important;
+      color: var(--th-text) !important;
+      padding: 0 10px;
+      font-size: 11px;
+      font-weight: 700;
+      outline: none;
+      cursor: pointer !important;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1),
+                  border-color 0.2s ease,
+                  background 0.2s ease,
+                  opacity 0.2s ease,
+                  box-shadow 0.2s ease;
+    }
+    .toolbar-action-btn:hover,
+    .toolbar-sort-select:hover,
+    .toolbar-sort-select:focus {
+      transform: translateY(-1.5px);
+      border-color: color-mix(in srgb, var(--th-accent) 45%, var(--th-border)) !important;
+      background: var(--th-surface-strong) !important;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    }
+    .toolbar-action-btn:active,
+    .toolbar-sort-select:active {
+      transform: translateY(0);
+    }
+    .toolbar-sort-select {
+      min-width: 140px;
+    }
+    .toolbar-utility-row {
+      flex-wrap: wrap;
+    }
+    .toolbar-utility-row .toolbar-sort-select {
+      flex: 1 1 150px;
+    }
+    .toolbar-utility-row .toolbar-action-btn {
+      flex: 0 0 auto;
+    }
+
+    /* Primary 渐变与流光发光阴影效果 */
+    .toolbar-action-btn.is-primary {
+      border-color: transparent !important;
+      color: var(--th-button-text) !important;
+      background: linear-gradient(135deg, var(--th-accent), var(--th-accent-2)) !important;
+      box-shadow: 0 6px 16px var(--th-glow);
+    }
+    .toolbar-action-btn.is-primary:hover {
+      box-shadow: 0 8px 20px var(--th-glow);
+    }
+    .toolbar-action-btn.is-selected-mode,
+    .toolbar-action-btn.is-running {
+      border-color: transparent !important;
+      color: var(--th-button-text) !important;
+      background: linear-gradient(135deg, var(--th-accent-2), var(--th-accent)) !important;
+      box-shadow: 0 6px 16px var(--th-glow);
+    }
+
+    .toolbar-action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    /* 选项框 */
+    .toolbar-export-option {
+      height: 32px;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 9px;
+      border-radius: 10px;
+      border: 1px solid var(--th-border);
+      background: var(--th-surface);
+      color: var(--th-text);
+      font-size: 11px;
+      font-weight: 700;
       cursor: pointer !important;
       user-select: none;
       box-sizing: border-box;
-      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+      transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), border-color 0.2s ease, background 0.2s ease;
     }
     .toolbar-export-option:hover {
-      transform: translateY(-1px);
-      border-color: color-mix(in srgb, var(--th-accent) 42%, var(--th-border));
+      transform: translateY(-1.5px);
+      border-color: color-mix(in srgb, var(--th-accent) 45%, var(--th-border));
       background: var(--th-surface-strong);
     }
     .toolbar-export-option input {
-      width: 14px;
-      height: 14px;
+      width: 13px;
+      height: 13px;
       accent-color: var(--th-accent);
       cursor: pointer !important;
       flex: 0 0 auto;
@@ -1065,22 +912,22 @@ function injectStyles() {
       white-space: nowrap;
       pointer-events: none;
     }
-    #tiktok-talent-helper-toolbar.is-selection-mode .toolbar-utility-row .toolbar-btn-export {
-      display: none !important;
-    }
+    #tiktok-talent-helper-toolbar.is-selection-mode .toolbar-utility-row .toolbar-btn-export,
     #tiktok-talent-helper-toolbar.is-selection-mode .toolbar-utility-row .toolbar-btn-select-entry {
       display: none !important;
     }
+
+    /* 导出进度条 - 极致磨砂流光背景 */
     .toolbar-export-progress {
       display: none;
-      flex: 1 0 100%;
-      padding: 10px 11px;
-      border-radius: 15px;
-      border: 1px solid color-mix(in srgb, var(--th-accent) 22%, var(--th-border));
+      width: 100%;
+      padding: 9px 11px;
+      border-radius: 12px;
+      border: 1px solid color-mix(in srgb, var(--th-accent) 20%, var(--th-border));
       background:
-        radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--th-accent-2) 16%, transparent), transparent 38%),
-        color-mix(in srgb, var(--th-surface-strong) 72%, transparent);
-      box-shadow: 0 10px 26px color-mix(in srgb, var(--th-shadow) 58%, transparent);
+        radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--th-accent-2) 12%, transparent), transparent 40%),
+        color-mix(in srgb, var(--th-surface-strong) 65%, transparent);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
       box-sizing: border-box;
       overflow: hidden;
     }
@@ -1092,27 +939,27 @@ function injectStyles() {
       justify-content: space-between;
       gap: 10px;
       align-items: center;
-      margin-bottom: 8px;
-      font-size: 12px;
+      margin-bottom: 6px;
+      font-size: 11px;
       line-height: 1.2;
     }
     .toolbar-export-progress-title {
       color: var(--th-text);
-      font-weight: 800;
+      font-weight: 700;
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .toolbar-export-progress-value {
-      color: var(--th-accent-2);
-      font-weight: 900;
+      color: var(--th-accent);
+      font-weight: 800;
       white-space: nowrap;
     }
     .toolbar-export-progress-track {
-      height: 7px;
+      height: 6px;
       border-radius: 999px;
-      background: color-mix(in srgb, var(--th-text) 12%, transparent);
+      background: color-mix(in srgb, var(--th-text) 10%, transparent);
       overflow: hidden;
     }
     .toolbar-export-progress-bar {
@@ -1120,186 +967,394 @@ function injectStyles() {
       height: 100%;
       border-radius: inherit;
       background: linear-gradient(90deg, var(--th-accent), var(--th-accent-2));
-      box-shadow: 0 0 18px color-mix(in srgb, var(--th-accent-2) 42%, transparent);
-      transition: width 0.22s ease;
+      box-shadow: 0 0 12px color-mix(in srgb, var(--th-accent) 40%, transparent);
+      transition: width 0.2s ease;
     }
     .toolbar-export-progress-detail {
-      margin-top: 7px;
+      margin-top: 6px;
       color: var(--th-muted);
-      font-size: 11px;
-      line-height: 1.35;
+      font-size: 10px;
+      line-height: 1.3;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    #tiktok-talent-helper-toolbar .toolbar-date-chip {
-      position: relative;
-      border-radius: 12px;
-      border: 1px solid var(--th-border);
-      background: linear-gradient(180deg, var(--th-surface-strong), var(--th-surface));
-      color: var(--th-text);
-      cursor: pointer !important;
-    }
-    #tiktok-talent-helper-toolbar .toolbar-date-chip:hover,
-    #tiktok-talent-helper-toolbar .toolbar-date-chip:focus {
-      border-color: color-mix(in srgb, var(--th-accent) 42%, var(--th-border));
-      background: linear-gradient(180deg, var(--th-surface-strong), color-mix(in srgb, var(--th-surface) 86%, var(--th-accent) 14%));
-    }
-    #tiktok-talent-helper-toolbar .toolbar-date-label {
-      color: var(--th-text);
-    }
-    #tiktok-talent-helper-toolbar .toolbar-date-icon {
-      opacity: 0.74;
-      font-size: 9px;
-      font-weight: 900;
-      letter-spacing: 0.7px;
-    }
-    #tiktok-talent-helper-toolbar .toolbar-date-chip::after {
-      content: "";
-      position: absolute;
-      inset: -2px;
-    }
-    #tiktok-talent-helper-toolbar .toolbar-date-separator {
-      color: var(--th-muted);
-    }
-    #tiktok-talent-helper-toolbar .toolbar-date-clear {
-      border: 1px solid var(--th-border);
+    .toolbar-selection-badge {
       background: var(--th-surface);
-      color: var(--th-text);
-      cursor: pointer !important;
-    }
-    #tiktok-talent-helper-calendar {
-      --th-bg: rgba(12, 13, 18, 0.96);
-      --th-surface: rgba(255,255,255,0.08);
-      --th-border: rgba(238, 234, 220, 0.16);
-      --th-text: #f5f1e8;
-      --th-muted: rgba(245,241,232,0.58);
-      --th-accent: #d8b36b;
-      --th-accent-2: #74d8cf;
-      --th-button-text: #10120f;
-      --th-shadow: rgba(0,0,0,0.38);
-      border-radius: 16px;
-      background: var(--th-bg);
       border: 1px solid var(--th-border);
-      box-shadow: 0 18px 42px var(--th-shadow);
       color: var(--th-text);
-      font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif;
-    }
-    #tiktok-talent-helper-calendar[data-theme="paper"] {
-      --th-bg: rgba(255, 252, 244, 0.97);
-      --th-surface: rgba(96,72,47,0.08);
-      --th-border: rgba(92, 70, 47, 0.18);
-      --th-text: #2b2118;
-      --th-muted: rgba(43,33,24,0.58);
-      --th-accent: #9f7042;
-      --th-accent-2: #2e756c;
-      --th-button-text: #fffaf0;
-      --th-shadow: rgba(112, 79, 45, 0.18);
-    }
-    #tiktok-talent-helper-calendar[data-theme="ocean"] {
-      --th-bg: rgba(6, 22, 21, 0.96);
-      --th-surface: rgba(217,246,232,0.08);
-      --th-border: rgba(187,230,216,0.2);
-      --th-text: #f3fbf5;
-      --th-muted: rgba(243,251,245,0.58);
-      --th-accent: #9bcfbd;
-      --th-accent-2: #d9b86d;
-      --th-button-text: #071b18;
-      --th-shadow: rgba(0, 52, 46, 0.36);
-    }
-    #tiktok-talent-helper-calendar[data-theme="ember"] {
-      --th-bg: rgba(23, 15, 10, 0.96);
-      --th-surface: rgba(246,196,133,0.08);
-      --th-border: rgba(247,198,134,0.2);
-      --th-text: #fff6e9;
-      --th-muted: rgba(255,246,233,0.58);
-      --th-accent: #c98d4b;
-      --th-accent-2: #f1cc7c;
-      --th-button-text: #261408;
-      --th-shadow: rgba(52,23,6,0.38);
-    }
-    #tiktok-talent-helper-calendar .calendar-title {
-      font-weight: 900;
-      color: var(--th-text);
-    }
-    #tiktok-talent-helper-calendar .calendar-nav {
-      border: 1px solid var(--th-border);
-      background: var(--th-surface);
-      color: var(--th-text);
-      cursor: pointer !important;
-    }
-    #tiktok-talent-helper-calendar .calendar-weekdays span {
-      color: var(--th-muted);
-    }
-    #tiktok-talent-helper-calendar .calendar-day {
-      color: var(--th-text);
-      cursor: pointer !important;
-    }
-    #tiktok-talent-helper-calendar .calendar-day:hover {
-      background: var(--th-surface);
-      border-color: var(--th-border);
-    }
-    #tiktok-talent-helper-calendar .calendar-day.is-muted {
-      color: color-mix(in srgb, var(--th-muted) 50%, transparent);
-    }
-    #tiktok-talent-helper-calendar .calendar-day.is-selected {
-      color: var(--th-button-text);
-      background: linear-gradient(135deg, var(--th-accent), var(--th-accent-2));
-    }
-    .toolbar-action-btn,
-    .toolbar-sort-select {
-      height: 34px;
-      border-radius: 12px;
-      border: 1px solid var(--th-border) !important;
-      background: var(--th-surface) !important;
-      color: var(--th-text) !important;
-      padding: 0 11px;
-      font-size: 12px;
-      font-weight: 800;
-      outline: none;
-      cursor: pointer !important;
+      font-weight: 700;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      min-width: 58px;
+      height: 32px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 11px;
       box-sizing: border-box;
-      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, opacity 0.18s ease;
     }
-    .toolbar-action-btn:hover,
-    .toolbar-sort-select:hover,
-    .toolbar-sort-select:focus {
-      transform: translateY(-1px);
-      border-color: color-mix(in srgb, var(--th-accent) 42%, var(--th-border)) !important;
-      background: var(--th-surface-strong) !important;
+    .toolbar-selection-badge.is-visible {
+      display: inline-flex;
     }
-    .toolbar-sort-select {
-      min-width: 154px;
+
+    /* 视频卡片覆盖泡泡样式优化 - 超薄白波，圆润对比 */
+    .helper-bubbles-container {
+      position: absolute !important;
+      inset: 0 !important;
+      z-index: 120;
+      display: block;
+      box-sizing: border-box;
+      overflow: hidden;
+      border-radius: inherit;
+      pointer-events: none;
     }
-    .toolbar-action-btn.is-primary {
-      border-color: transparent !important;
-      color: var(--th-button-text) !important;
-      background: linear-gradient(135deg, var(--th-accent), var(--th-accent-2)) !important;
-      box-shadow: 0 8px 20px var(--th-glow);
+    .helper-bubble {
+      position: absolute;
+      z-index: 100;
+      background: rgba(12, 14, 20, 0.48);
+      backdrop-filter: blur(10px) saturate(120%);
+      -webkit-backdrop-filter: blur(10px) saturate(120%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      color: #ffffff;
+      padding: 3px 7px;
+      font-size: 9.5px;
+      font-weight: 700;
+      font-family: Inter, system-ui, sans-serif;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      letter-spacing: 0.1px;
     }
-    .toolbar-action-btn.is-selected-mode {
-      border-color: transparent !important;
-      color: var(--th-button-text) !important;
-      background: linear-gradient(135deg, var(--th-accent-2), var(--th-accent)) !important;
-      box-shadow: 0 8px 20px var(--th-glow);
+    .helper-bubble-rate {
+      right: 6px;
+      top: 6px;
+      background: rgba(254, 44, 85, 0.35);
+      border-color: rgba(254, 44, 85, 0.5);
+      color: #fff0f3;
     }
-    .toolbar-action-btn.is-running {
-      border-color: transparent !important;
-      color: var(--th-button-text) !important;
-      background: linear-gradient(135deg, var(--th-accent-2), var(--th-accent)) !important;
-      box-shadow: 0 8px 20px var(--th-glow);
+    .helper-bubble-likes { right: 6px; bottom: 58px; }
+    .helper-bubble-comments { right: 6px; bottom: 32px; }
+    .helper-bubble-date { right: 6px; bottom: 6px; }
+    .helper-bubble-views {
+      left: 6px;
+      top: 36px;
+      background: rgba(37, 244, 238, 0.3);
+      border-color: rgba(37, 244, 238, 0.45);
+      color: #efffff;
     }
-    .toolbar-action-btn:disabled {
-      opacity: 0.48;
-      cursor: not-allowed !important;
-      transform: none;
+    .helper-bubble-commerce {
+      left: 6px;
+      top: 66px;
+      gap: 4px;
+      padding: 3px 7px;
+      font-size: 9px;
+      pointer-events: none;
     }
-    #tiktok-talent-helper-toolbar .toolbar-selection-badge {
-      background: var(--th-surface);
-      border: 1px solid var(--th-border);
-      color: var(--th-text);
+    .helper-bubble-commerce.is-commerce {
+      background: rgba(255, 186, 73, 0.35);
+      border-color: rgba(255, 186, 73, 0.55);
+      color: #fff6e0;
+    }
+    .helper-bubble-commerce.is-normal {
+      background: rgba(12, 14, 20, 0.55);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.85);
+    }
+    .helper-bubble-commerce.is-unknown {
+      background: rgba(37, 244, 238, 0.2);
+      border-color: rgba(37, 244, 238, 0.35);
+      color: rgba(224, 255, 253, 0.9);
+    }
+    .helper-commerce-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 6px currentColor;
+      flex: 0 0 auto;
+    }
+
+    /* 视频多选选择控制按钮 */
+    .helper-select-toggle {
+      position: absolute;
+      left: 6px;
+      bottom: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(12, 12, 16, 0.6);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      transition: all 0.2s ease;
+    }
+    .helper-select-toggle:hover {
+      transform: scale(1.08);
+      background: rgba(12, 12, 16, 0.8);
+    }
+    .helper-card-direct-download,
+    .helper-card-preview-video,
+    .helper-select-toggle {
+      pointer-events: auto !important;
+    }
+    .helper-select-toggle input {
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      background: transparent;
+      margin: 0;
+      pointer-events: none;
+      transition: all 0.2s ease;
+    }
+    .helper-select-toggle.is-visible {
+      display: flex;
+    }
+    .helper-select-toggle.is-selected {
+      background: linear-gradient(135deg, rgba(254, 44, 85, 0.95), rgba(37, 244, 238, 0.82));
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .helper-select-toggle.is-selected input {
+      background: #ffffff;
+      border-color: #ffffff;
+      box-shadow: inset 0 0 0 1.5px rgba(254, 44, 85, 0.85);
+    }
+
+    /* 视频预览弹窗 - 极致磨砂水晶风格 */
+    .helper-video-preview-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      box-sizing: border-box;
+      background: rgba(3, 5, 10, 0.65);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+    .helper-video-preview-dialog {
+      width: min(460px, calc(100vw - 48px));
+      max-height: calc(100vh - 48px);
+      overflow: hidden;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(22, 24, 31, 0.93), rgba(10, 12, 18, 0.96));
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      color: #fff;
+      font-family: Inter, system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+    .helper-video-preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .helper-video-preview-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .helper-video-preview-close {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
+    }
+    .helper-video-preview-close:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .helper-video-preview-body {
+      padding: 12px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .helper-video-preview-player {
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+      background: #000;
+      min-height: 200px;
+    }
+    .helper-video-preview-video {
+      width: 100%;
+      max-height: min(45vh, 480px);
+      display: block;
+      background: #000;
+      object-fit: contain;
+    }
+
+    .helper-video-subtitles {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(37, 244, 238, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+      color: rgba(255, 255, 255, 0.8);
+    }
+    .helper-video-subtitles-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+      font-size: 11px;
       font-weight: 800;
+      color: #fff;
     }
+    .helper-video-subtitles-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: rgba(37, 244, 238, 0.9);
+      font-size: 10.5px;
+      font-weight: 700;
+    }
+    .helper-video-subtitles-text,
+    .helper-video-subtitles-original {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 11px;
+      line-height: 1.5;
+      max-height: 120px;
+      overflow: auto;
+    }
+    .helper-video-subtitles-original {
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.45);
+      font-size: 10px;
+      max-height: 80px;
+    }
+    .helper-video-subtitles-actions {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .helper-video-subtitles-btn {
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 13px;
+      border: 1px solid rgba(37, 244, 238, 0.2);
+      background: rgba(37, 244, 238, 0.08);
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer !important;
+      transition: background 0.2s ease;
+    }
+    .helper-video-subtitles-btn:hover {
+      background: rgba(37, 244, 238, 0.15);
+    }
+
+    .helper-video-products {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .helper-video-products-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .helper-video-products-count {
+      color: rgba(37, 244, 238, 0.9);
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .helper-video-product-list {
+      display: grid;
+      gap: 6px;
+      max-height: 200px;
+      overflow: auto;
+    }
+    .helper-video-product-card {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      gap: 8px;
+      align-items: center;
+      padding: 6px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #fff;
+      text-decoration: none;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .helper-video-product-card:hover {
+      background: rgba(37, 244, 238, 0.08);
+      border-color: rgba(37, 244, 238, 0.18);
+    }
+    .helper-video-product-img {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+    .helper-video-product-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .helper-video-product-meta {
+      margin-top: 2px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 10px;
+    }
+    .helper-video-product-price {
+      color: #25f4ee;
+      font-weight: 700;
+    }
+    .helper-video-product-origin-price {
+      text-decoration: line-through;
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    /* 呼吸态样式 */
     @keyframes pulse {
       0% { opacity: 0.5; }
       50% { opacity: 1; }
@@ -3398,6 +3453,10 @@ function sortCards(direction) {
  * 创建页面顶部水平工具栏的 DOM 结构与样式
  * @returns {HTMLElement} 工具栏元素
  */
+/**
+ * 创建页面侧边悬浮工具栏的 DOM 结构与样式
+ * @returns {HTMLElement} 工具栏元素
+ */
 function createToolbarDOM() {
   const bar = document.createElement('div');
   bar.id = TOOLBAR_ID;
@@ -3407,8 +3466,9 @@ function createToolbarDOM() {
 
   bar.innerHTML = `
     <div class="toolbar-compact-head">
-      <button class="toolbar-drag-handle" type="button" title="拖动并吸附到浏览器边缘" aria-label="拖动达人数据助手">
+      <button class="toolbar-drag-handle" type="button" title="点击展开，拖动可吸附到浏览器边缘" aria-label="展开或拖动达人数据助手">
         <img class="toolbar-logo-image" src="${logoUrl}" alt="">
+        <span class="toolbar-orb-count" title="已识别视频"><span class="toolbar-orb-count-value">0</span></span>
       </button>
       <button class="toolbar-panel-toggle" type="button" title="展开/收起达人数据助手">
         <span class="toolbar-title">达人助手</span>
@@ -3423,52 +3483,55 @@ function createToolbarDOM() {
       </div>
     </div>
     <div class="toolbar-panel-body">
-      <div class="toolbar-date-group" title="选择后会同时作用于下载区间视频和导出 Excel">
-        <button class="toolbar-date-chip toolbar-date-start-chip" type="button">
-          <span class="toolbar-date-label toolbar-date-start-label">开始日期</span>
-          <span class="toolbar-date-icon">DATE</span>
-        </button>
-        <span class="toolbar-date-separator">至</span>
-        <button class="toolbar-date-chip toolbar-date-end-chip" type="button">
-          <span class="toolbar-date-label toolbar-date-end-label">结束日期</span>
-          <span class="toolbar-date-icon">DATE</span>
-        </button>
-        <button class="toolbar-date-clear" type="button" title="清空日期筛选">×</button>
-      </div>
-      <div class="toolbar-selection-actions">
-        <button class="toolbar-action-btn toolbar-btn-select-mode" type="button">选择视频</button>
-        <button class="toolbar-action-btn is-primary toolbar-btn-download-selected" type="button">下载选中视频</button>
-        <button class="toolbar-action-btn is-primary toolbar-btn-export-selected" type="button">导出选中</button>
-        <span class="toolbar-selection-badge">已选 0</span>
-      </div>
-      <div class="toolbar-utility-row">
-        <button class="toolbar-action-btn toolbar-btn-download-range" type="button">下载区间视频</button>
-        <button class="toolbar-action-btn toolbar-btn-select-mode toolbar-btn-select-entry" type="button">选择视频</button>
-        <select class="toolbar-sort-select">
-          <option value="reset">默认排序</option>
-          <option value="desc">播放量降序 (从高到低)</option>
-          <option value="asc">播放量升序 (从低到高)</option>
-        </select>
-        <button class="toolbar-action-btn toolbar-btn-scroll" type="button">自动滚动</button>
-        <label class="toolbar-export-option" title="开启后导出会补全商品名称、价格、店铺、链接等字段；关闭时导出更快">
-          <input class="toolbar-export-products-toggle" type="checkbox">
-          <span class="toolbar-export-option-text">导出商品</span>
-        </label>
-        <button class="toolbar-action-btn is-primary toolbar-btn-export" type="button">导出 Excel</button>
-      </div>
-      <div class="toolbar-export-progress" aria-live="polite">
-        <div class="toolbar-export-progress-head">
-          <span class="toolbar-export-progress-title">准备导出</span>
-          <span class="toolbar-export-progress-value">0%</span>
+      <div class="toolbar-panel-inner">
+        <div class="toolbar-date-group" title="选择后会同时作用于下载区间视频和导出 Excel">
+          <button class="toolbar-date-chip toolbar-date-start-chip" type="button">
+            <span class="toolbar-date-label toolbar-date-start-label">开始日期</span>
+            <span class="toolbar-date-icon">DATE</span>
+          </button>
+          <span class="toolbar-date-separator">至</span>
+          <button class="toolbar-date-chip toolbar-date-end-chip" type="button">
+            <span class="toolbar-date-label toolbar-date-end-label">结束日期</span>
+            <span class="toolbar-date-icon">DATE</span>
+          </button>
+          <button class="toolbar-date-clear" type="button" title="清空日期筛选">×</button>
         </div>
-        <div class="toolbar-export-progress-track">
-          <div class="toolbar-export-progress-bar"></div>
+        <div class="toolbar-selection-actions">
+          <button class="toolbar-action-btn toolbar-btn-select-mode" type="button">选择视频</button>
+          <button class="toolbar-action-btn is-primary toolbar-btn-download-selected" type="button">下载选中视频</button>
+          <button class="toolbar-action-btn is-primary toolbar-btn-export-selected" type="button">导出选中</button>
+          <span class="toolbar-selection-badge">已选 0</span>
         </div>
-        <div class="toolbar-export-progress-detail">等待开始</div>
+        <div class="toolbar-utility-row">
+          <button class="toolbar-action-btn toolbar-btn-download-range" type="button">下载区间视频</button>
+          <button class="toolbar-action-btn toolbar-btn-select-mode toolbar-btn-select-entry" type="button">选择视频</button>
+          <select class="toolbar-sort-select">
+            <option value="reset">默认排序</option>
+            <option value="desc">播放量降序 (从高到低)</option>
+            <option value="asc">播放量升序 (从低到高)</option>
+          </select>
+          <button class="toolbar-action-btn toolbar-btn-scroll" type="button">自动滚动</button>
+          <label class="toolbar-export-option" title="开启后导出会补全商品名称、价格、店铺、链接等字段；关闭时导出更快">
+            <input class="toolbar-export-products-toggle" type="checkbox">
+            <span class="toolbar-export-option-text">导出商品</span>
+          </label>
+          <button class="toolbar-action-btn is-primary toolbar-btn-export" type="button">导出 Excel</button>
+        </div>
+        <div class="toolbar-export-progress" aria-live="polite">
+          <div class="toolbar-export-progress-head">
+            <span class="toolbar-export-progress-title">准备导出</span>
+            <span class="toolbar-export-progress-value">0%</span>
+          </div>
+          <div class="toolbar-export-progress-track">
+            <div class="toolbar-export-progress-bar"></div>
+          </div>
+          <div class="toolbar-export-progress-detail">等待开始</div>
+        </div>
       </div>
     </div>
     <button class="toolbar-edge-tab" type="button" title="显示达人数据助手" aria-label="显示达人数据助手">
       <img class="toolbar-edge-logo" src="${logoUrl}" alt="">
+      <span class="toolbar-orb-count toolbar-edge-count" title="已识别视频"><span class="toolbar-orb-count-value">0</span></span>
       <span class="toolbar-edge-arrow" aria-hidden="true"></span>
     </button>
   `;
@@ -3500,12 +3563,46 @@ function loadToolbarTheme() {
   }
 }
 
+function applyToolbarVisibility(visible) {
+  toolbarVisible = visible !== false;
+  if (!toolbarElement) return;
+  toolbarElement.classList.toggle('is-disabled', !toolbarVisible);
+  toolbarElement.toggleAttribute('hidden', !toolbarVisible);
+  toolbarElement.setAttribute('aria-hidden', String(!toolbarVisible));
+  if (toolbarVisible) {
+    toolbarElement.style.removeProperty('display');
+  } else {
+    toolbarElement.style.setProperty('display', 'none', 'important');
+  }
+  if (!toolbarVisible) closeCalendarPopover();
+}
+
+function loadToolbarVisibility() {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local?.get) {
+    applyToolbarVisibility(true);
+    return;
+  }
+
+  try {
+    chrome.storage.local.get([TOOLBAR_VISIBLE_STORAGE_KEY], (data = {}) => {
+      applyToolbarVisibility(data[TOOLBAR_VISIBLE_STORAGE_KEY] !== false);
+    });
+  } catch (error) {
+    applyToolbarVisibility(true);
+  }
+}
+
 function bindToolbarThemeSync() {
   if (toolbarThemeListenerBound || typeof chrome === 'undefined' || !chrome.storage?.onChanged?.addListener) return;
   toolbarThemeListenerBound = true;
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local' || !changes[POPUP_THEME_STORAGE_KEY]) return;
-    applyToolbarTheme(changes[POPUP_THEME_STORAGE_KEY].newValue);
+    if (areaName !== 'local') return;
+    if (changes[POPUP_THEME_STORAGE_KEY]) {
+      applyToolbarTheme(changes[POPUP_THEME_STORAGE_KEY].newValue);
+    }
+    if (changes[TOOLBAR_VISIBLE_STORAGE_KEY]) {
+      applyToolbarVisibility(changes[TOOLBAR_VISIBLE_STORAGE_KEY].newValue !== false);
+    }
   });
 }
 
@@ -3562,18 +3659,11 @@ function getToolbarCenterRatio() {
 
 function syncToolbarDimensions() {
   if (!toolbarElement) return;
-  if (toolbarLayout.hidden) {
-    toolbarElement.style.width = '42px';
-    toolbarElement.style.height = '58px';
-    toolbarElement.style.padding = '0';
-    toolbarElement.style.borderRadius = '999px';
-    return;
-  }
-
-  toolbarElement.style.height = 'auto';
-  toolbarElement.style.width = toolbarLayout.collapsed ? 'auto' : 'min(420px, calc(100vw - 20px))';
-  toolbarElement.style.padding = toolbarLayout.collapsed ? '6px' : '10px';
-  toolbarElement.style.borderRadius = toolbarLayout.collapsed ? '999px' : '18px';
+  // 彻底废除 JS 对尺寸的强行赋值，改由 CSS 类名和变量实现平滑过渡
+  toolbarElement.style.width = '';
+  toolbarElement.style.height = '';
+  toolbarElement.style.padding = '';
+  toolbarElement.style.borderRadius = '';
 }
 
 /**
@@ -3624,11 +3714,13 @@ function bindToolbarDragging() {
 
   const finishDrag = (event) => {
     if (!toolbarDragState || event.pointerId !== toolbarDragState.pointerId) return;
+    const moved = toolbarDragState.moved;
     const rect = toolbarElement.getBoundingClientRect();
     toolbarLayout.side = rect.left + rect.width / 2 <= window.innerWidth / 2 ? 'left' : 'right';
     toolbarLayout.centerRatio = getToolbarCenterRatio();
     toolbarElement.classList.remove('is-dragging');
     toolbarDragState = null;
+    suppressToolbarHandleClick = moved;
     document.removeEventListener('pointermove', moveToolbar);
     document.removeEventListener('pointerup', finishDrag);
     document.removeEventListener('pointercancel', finishDrag);
@@ -3639,6 +3731,11 @@ function bindToolbarDragging() {
   const moveToolbar = (event) => {
     if (!toolbarDragState || event.pointerId !== toolbarDragState.pointerId) return;
     event.preventDefault();
+    const deltaX = event.clientX - toolbarDragState.startX;
+    const deltaY = event.clientY - toolbarDragState.startY;
+    if (!toolbarDragState.moved && Math.hypot(deltaX, deltaY) >= 4) {
+      toolbarDragState.moved = true;
+    }
     const nextLeft = toolbarDragState.startLeft + event.clientX - toolbarDragState.startX;
     const nextTop = toolbarDragState.startTop + event.clientY - toolbarDragState.startY;
     const maxLeft = Math.max(TOOLBAR_EDGE_GAP, window.innerWidth - toolbarDragState.width - TOOLBAR_EDGE_GAP);
@@ -3653,6 +3750,7 @@ function bindToolbarDragging() {
     if (event.button !== 0 || toolbarLayout.hidden) return;
     event.preventDefault();
     event.stopPropagation();
+    suppressToolbarHandleClick = false;
     const rect = toolbarElement.getBoundingClientRect();
     toolbarDragState = {
       pointerId: event.pointerId,
@@ -3661,12 +3759,25 @@ function bindToolbarDragging() {
       startLeft: rect.left,
       startTop: rect.top,
       width: rect.width,
-      height: rect.height
+      height: rect.height,
+      moved: false
     };
     toolbarElement.classList.add('is-dragging');
     document.addEventListener('pointermove', moveToolbar, { passive: false });
     document.addEventListener('pointerup', finishDrag);
     document.addEventListener('pointercancel', finishDrag);
+  });
+
+  handle.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (suppressToolbarHandleClick) {
+      suppressToolbarHandleClick = false;
+      return;
+    }
+    if (toolbarElement.classList.contains('is-collapsed')) {
+      setToolbarCollapsed(false);
+    }
   });
 }
 
@@ -3677,9 +3788,24 @@ function bindToolbarResize() {
 }
 
 /**
+ * 在折叠动画改变工具栏尺寸时持续修正位置，避免面板越出视口。
+ */
+function bindToolbarSizeObserver() {
+  if (!toolbarElement || typeof ResizeObserver === 'undefined') return;
+  toolbarSizeObserver?.disconnect();
+  toolbarSizeObserver = new ResizeObserver(() => {
+    if (!toolbarElement || toolbarElement.classList.contains('is-dragging')) return;
+    applyToolbarPosition();
+  });
+  toolbarSizeObserver.observe(toolbarElement);
+}
+
+/**
  * 初始化并注入页面顶部水平工具栏
  */
 function initToolbar() {
+  toolbarSizeObserver?.disconnect();
+  toolbarSizeObserver = null;
   document.getElementById(TOOLBAR_ID)?.remove();
   document.getElementById(TOOLBAR_CALENDAR_ID)?.remove();
   toolbarElement = null;
@@ -3689,6 +3815,7 @@ function initToolbar() {
   applyToolbarTheme(DEFAULT_POPUP_THEME);
   document.body.appendChild(toolbarElement);
   loadToolbarTheme();
+  loadToolbarVisibility();
   bindToolbarThemeSync();
   if (document.body.style.paddingTop === '50px') {
     document.body.style.paddingTop = '';
@@ -3698,6 +3825,7 @@ function initToolbar() {
   loadToolbarLayout();
   bindToolbarDragging();
   bindToolbarResize();
+  bindToolbarSizeObserver();
 
   toolbarElement.querySelector('.toolbar-panel-toggle').addEventListener('click', (e) => {
     e.preventDefault();
@@ -3808,15 +3936,23 @@ function toggleToolbarPanel() {
   setToolbarCollapsed(!toolbarElement.classList.contains('is-collapsed'));
 }
 
+/**
+ * 设置工具栏的折叠/展开状态
+ * @param {boolean} collapsed - 是否折叠
+ * @param {boolean} [persist=true] - 是否持久化状态
+ */
 function setToolbarCollapsed(collapsed, persist = true) {
   if (!toolbarElement) return;
   if (persist) toolbarLayout.centerRatio = getToolbarCenterRatio();
   toolbarLayout.collapsed = collapsed;
   toolbarElement.classList.toggle('is-collapsed', collapsed);
-  const body = toolbarElement.querySelector('.toolbar-panel-body');
   const closeBtn = toolbarElement.querySelector('.toolbar-panel-close');
-  if (body) body.style.display = collapsed ? 'none' : 'flex';
   if (closeBtn) closeBtn.textContent = collapsed ? '+' : '−';
+  const dragHandle = toolbarElement.querySelector('.toolbar-drag-handle');
+  if (dragHandle) {
+    dragHandle.title = collapsed ? '点击展开，拖动可吸附到浏览器边缘' : '拖动并吸附到浏览器边缘';
+    dragHandle.setAttribute('aria-label', collapsed ? '展开或拖动达人数据助手' : '拖动达人数据助手');
+  }
   syncToolbarDimensions();
   window.requestAnimationFrame(() => applyToolbarPosition());
   if (persist) persistToolbarLayout();
@@ -3961,6 +4097,9 @@ function updateToolbarCount() {
   if (toolbarElement) {
     const countSpan = toolbarElement.querySelector('.toolbar-card-count');
     if (countSpan) countSpan.textContent = scannedCards.length;
+    toolbarElement.querySelectorAll('.toolbar-orb-count-value').forEach((orbCount) => {
+      orbCount.textContent = scannedCards.length > 99 ? '99+' : scannedCards.length;
+    });
   }
 
   const visibleIds = new Set(scannedCards.map(item => item.videoId).filter(Boolean));
@@ -5876,6 +6015,12 @@ async function downloadVideoFallback(videoUrl, filename, videoId = '') {
  * @returns {boolean} 返回 true 保持消息通道开启
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'setToolbarVisibility') {
+    applyToolbarVisibility(message.visible !== false);
+    sendResponse({ success: true, visible: toolbarVisible });
+    return false;
+  }
+
   if (message.action === "getVideoStats") {
     scanCards();
     const total = scannedCards.length;
