@@ -1,0 +1,89 @@
+{
+  "manifest_version": 3,
+  "name": "达人数据助手",
+  "version": "1.0.0",
+  "description": "TikTok 跨境电商运营辅助工具，支持视频数据扫描、商品信息导出、排序与无水印下载。",
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "downloads",
+    "tabs",
+    "audioCapture",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "https://*.tiktok.com/*",
+    "https://*.tiktokshop.com/*",
+    "https://shop.tiktok.com/*",
+    "https://*.tiktokcdn.com/*",
+    "https://*.tiktokcdn-us.com/*",
+    "https://*.tiktokcdn-eu.com/*",
+    "https://*.tiktokv.com/*",
+    "https://*.byteoversea.com/*",
+    "https://*.byteoversea.net/*",
+    "https://*.bytefcdn-oversea.com/*",
+    "https://*.ibytedtos.com/*",
+    "https://*.muscdn.com/*",
+    "https://*.bytecdn.cn/*",
+    "https://*.akamaized.net/*",
+    "https://api.douyin.wtf/*",
+    "https://api.openai.com/*",
+    "https://api.deepseek.com/*",
+    "https://api.moonshot.cn/*",
+    "https://dashscope.aliyuncs.com/*",
+    "https://open.bigmodel.cn/*",
+    "https://token.sensenova.cn/*",
+    "https://translate.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.tiktok.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://*.tiktok.com/*"
+      ],
+      "js": [
+        "hook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/talent-data-logo.png",
+        "vendor/jszip.min.js",
+        "zipper.html",
+        "zipper.js"
+      ],
+      "matches": [
+        "https://*.tiktok.com/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  }
+}

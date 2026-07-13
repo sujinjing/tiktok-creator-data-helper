@@ -1,0 +1,19 @@
+.DS_Store
+.claude/
+.playwright-cli/
+
+# Local QA and generated intermediates
+output/
+docs/plans/
+*.log
+
+# Local captures and distributable archives are intentionally not published
+tiktok_mobile_response.html
+dist/
+*.zip
+
+# Local secrets and dependencies
+.env
+.env.*
+!.env.example
+node_modules/

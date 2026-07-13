@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>达人数据助手</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">✨</span>
+        <div>
+          <span class="logo-text">达人数据助手</span>
+          <span class="subtitle">TikTok 数据与脚本工作台</span>
+        </div>
+      </div>
+      <div class="version">版本 1.0.0</div>
+    </header>
+
+    <section class="theme-bar" aria-label="主题选择">
+      <button class="theme-option is-active" type="button" data-theme="neon">曜石</button>
+      <button class="theme-option" type="button" data-theme="paper">象牙</button>
+      <button class="theme-option" type="button" data-theme="ocean">青瓷</button>
+      <button class="theme-option" type="button" data-theme="ember">琥珀</button>
+    </section>
+
+    <section class="section status-section">
+      <div class="section-title">
+        <span>页面数据</span>
+        <span class="section-note">当前标签页</span>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="total-videos">0</div>
+          <div class="metric-label">已检测视频</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="avg-views">-</div>
+          <div class="metric-label">平均播放量</div>
+        </div>
+      </div>
+    </section>
+
+    <details class="section config-section" id="ai-config-panel">
+      <summary class="section-summary">
+        <span>AI 配置</span>
+        <span class="status-pill" id="ai-status-pill">未启用</span>
+      </summary>
+
+      <div class="config-choice">
+        <label class="switch-row" for="ai-enabled">
+          <input type="checkbox" id="ai-enabled">
+          <span class="switch-ui"></span>
+          <span>
+            <strong>启用 AI 功能</strong>
+            <small>用于脚本生成和播放页字幕翻译；不配置也不影响下载、导出和页面数据分析。</small>
+          </span>
+        </label>
+      </div>
+
+      <div class="config-fields" id="ai-config-fields">
+        <div class="input-group">
+          <label for="provider-select">供应商</label>
+          <select id="provider-select">
+            <option value="openai">OpenAI</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="moonshot">Kimi / Moonshot</option>
+            <option value="qwen">通义千问</option>
+            <option value="zhipu">智谱 GLM</option>
+            <option value="sensenova">SenseNova</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+
+        <div class="input-group" id="endpoint-group">
+          <label for="api-url">接口地址 (Endpoint)</label>
+          <input type="text" id="api-url" placeholder="https://api.openai.com/v1" />
+        </div>
+
+        <div class="input-group">
+          <label for="api-key">接口密钥 (API Key)</label>
+          <input type="password" id="api-key" placeholder="请输入您的密钥" />
+        </div>
+
+        <div class="input-group">
+          <label for="model-select">模型</label>
+          <select id="model-select"></select>
+          <input class="custom-model-input" type="text" id="ai-model" placeholder="自定义模型名称，例如 gpt-4o" />
+        </div>
+
+        <button id="save-config-btn" class="btn btn-primary">保存配置</button>
+      </div>
+    </details>
+
+    <section class="section ai-section">
+      <div class="section-title">
+        <span>爆款脚本仿写</span>
+        <span class="section-note">可选 AI</span>
+      </div>
+      <div class="input-group">
+        <label for="script-prompt">仿写指令 (Prompt)</label>
+        <textarea id="script-prompt" rows="3" placeholder="例如：提取下方视频风格，并为其仿写一段针对美妆产品的带货脚本。"></textarea>
+      </div>
+      <button id="generate-script-btn" class="btn btn-gradient">一键生成脚本</button>
+
+      <div class="result-area" id="result-area" style="display: none;">
+        <div class="result-title">生成结果：</div>
+        <div class="result-content" id="result-content"></div>
+        <button id="copy-result-btn" class="btn btn-secondary">复制结果</button>
+      </div>
+    </section>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
