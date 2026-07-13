@@ -1455,17 +1455,21 @@ function extractJsonFromScript(text) {
 function recursiveExtractVideoInfo(obj) {
   if (!obj || typeof obj !== 'object') return;
 
-  const itemId = obj.id || obj.awemeId || obj.videoId || obj.itemId || obj.aweme_id;
-  const createTime = obj.createTime !== undefined ? obj.createTime : obj.create_time;
+  const itemId = obj.id || obj.idStr || obj.id_str || obj.awemeId || obj.aweme_id ||
+                 obj.awemeIdStr || obj.aweme_id_str || obj.videoId || obj.video_id ||
+                 obj.itemId || obj.item_id;
+  const createTime = firstDefinedValue(obj, [
+    'createTime',
+    'create_time',
+    'createTimeSec',
+    'create_time_sec',
+    'createTimestamp',
+    'create_timestamp'
+  ]);
 
-  if (itemId && createTime !== undefined) {
-    // 只有当它不包含用户信息独有字段，且包含视频专属特征时，才确认为视频数据节点
-    const isUserNode = obj.uniqueId || obj.nickname || obj.avatarThumb || obj.secUid;
-    const isVideoNode = obj.desc !== undefined || obj.stats !== undefined || obj.video !== undefined;
-
-    if (!isUserNode && isVideoNode) {
-      updateApiVideoCache(obj, String(itemId), createTime);
-    }
+  if (itemId && createTime !== undefined && looksLikeVideoDataNode(obj)) {
+    // 本人主页会把作者字段平铺到视频节点，不能仅凭 uniqueId/nickname 将其排除。
+    updateApiVideoCache(obj, String(itemId), createTime);
   }
 
   for (let key in obj) {
@@ -1475,6 +1479,36 @@ function recursiveExtractVideoInfo(obj) {
   }
 }
 
+function firstDefinedValue(obj, keys) {
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
+      return obj[key];
+    }
+  }
+  return undefined;
+}
+
+function looksLikeVideoDataNode(obj) {
+  return obj.desc !== undefined ||
+         obj.description !== undefined ||
+         obj.stats !== undefined ||
+         obj.statsV2 !== undefined ||
+         obj.statistics !== undefined ||
+         obj.video !== undefined ||
+         obj.videoInfo !== undefined ||
+         obj.video_info !== undefined ||
+         obj.awemeType !== undefined ||
+         obj.aweme_type !== undefined;
+}
+
+function parseMetricValue(source, keys) {
+  const raw = firstDefinedValue(source || {}, keys);
+  if (raw && typeof raw === 'object') {
+    return parseInt(firstDefinedValue(raw, ['value', 'count', 'total']) || 0) || 0;
+  }
+  return parseInt(raw || 0) || 0;
+}
+
 /**
  * 将解析出的视频节点元数据更新并缓存至全局变量 apiVideos 中
  * @param {Object} obj - 视频数据节点对象
@@ -1482,14 +1516,14 @@ function recursiveExtractVideoInfo(obj) {
  * @param {number|string} createTime - 视频创建的时间戳
  */
 function updateApiVideoCache(obj, vId, createTime) {
-  const stats = obj.stats || obj.statistics || obj;
-  const video = obj.video || {};
+  const stats = obj.stats || obj.statsV2 || obj.statistics || obj;
+  const video = obj.video || obj.videoInfo || obj.video_info || {};
 
   // 调用辅助函数兼容提取合法的播放直链，防范误拿对象数据
   const playUrl = extractPlayUrl(video) || extractBestMediaUrlFromAnyPayload(obj);
 
   // 提取视频描述
-  const desc = obj.desc || '';
+  const desc = obj.desc || obj.description || obj.text || '';
 
   // 提取视频时长并进行毫秒与秒的单位兼容转换
   let duration = 0;
@@ -1516,10 +1550,10 @@ function updateApiVideoCache(obj, vId, createTime) {
 
   apiVideos[vId] = {
     createTime: parseInt(createTime),
-    views: parseInt(stats.playCount || stats.viewCount || stats.play_count || stats.view_count || stats.views || 0),
-    likes: parseInt(stats.diggCount || stats.digg_count || stats.likeCount || stats.like_count || stats.likes || 0),
-    comments: parseInt(stats.commentCount || stats.comment_count || stats.comments || 0),
-    shares: parseInt(stats.shareCount || stats.share_count || stats.shares || 0),
+    views: parseMetricValue(stats, ['playCount', 'viewCount', 'play_count', 'view_count', 'views']),
+    likes: parseMetricValue(stats, ['diggCount', 'digg_count', 'likeCount', 'like_count', 'likes']),
+    comments: parseMetricValue(stats, ['commentCount', 'comment_count', 'comments']),
+    shares: parseMetricValue(stats, ['shareCount', 'share_count', 'shares']),
     playUrl: playUrl || previous.playUrl || '',
     duration: duration,
     desc: desc,
