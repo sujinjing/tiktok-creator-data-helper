@@ -2564,6 +2564,53 @@ function getVideoIdFromLink(link) {
 }
 
 /**
+ * 查找卡片里的原生播放量节点，并排除新版主页中复用 video-count 类名的点赞节点。
+ * @param {HTMLElement|null} cardEl - 视频卡片根节点
+ * @returns {HTMLElement|null} 播放量节点，未识别到时返回 null
+ */
+function findVideoViewCountElement(cardEl) {
+  if (!cardEl) return null;
+
+  const explicitViewNode = cardEl.querySelector(
+    '[data-e2e="video-views"], [data-e2e="video-view-count"], [data-e2e="browse-video-count"]'
+  );
+  if (explicitViewNode && !isVideoLikeCountElement(explicitViewNode)) return explicitViewNode;
+
+  const candidates = Array.from(cardEl.querySelectorAll(
+    '[class*="StrongVideoCount"], [class*="video-count"], strong'
+  ));
+  return candidates.find((candidate) => {
+    const context = candidate.parentElement || candidate;
+    if (isVideoLikeCountElement(candidate)) return false;
+
+    return !!context.querySelector(
+      'svg[class*="Play"], [class*="play-icon"], [data-e2e*="video-view"], [data-e2e*="play-count"]'
+    );
+  }) || null;
+}
+
+function isVideoLikeCountElement(candidate) {
+  if (!candidate) return false;
+  const context = candidate.parentElement || candidate;
+  return !!context.querySelector(
+    'svg.like-icon, svg[class*="Heart"], [class*="like-icon"], [data-e2e*="like"]'
+  );
+}
+
+/**
+ * 解析卡片播放量；接口 playCount 优先于易受页面布局影响的 DOM 文本。
+ * @param {Object|null} apiInfo - apiVideos 中的视频数据
+ * @param {HTMLElement|null} viewCountElement - 卡片原生播放量节点
+ * @returns {number} 最终播放量
+ */
+function resolveVideoViewCount(apiInfo, viewCountElement) {
+  if (apiInfo && Number.isFinite(apiInfo.views) && apiInfo.views > 0) {
+    return apiInfo.views;
+  }
+  return viewCountElement ? parseViewCount(viewCountElement.textContent) : 0;
+}
+
+/**
  * 判断链接所在节点是否像一个真实的视频卡片，而不是占位或导航元素
  * @param {HTMLElement|null} cardEl - 卡片根节点
  * @param {HTMLAnchorElement} link - 视频链接元素
@@ -2577,12 +2624,7 @@ function isValidVideoCard(cardEl, link) {
   if (rect.width < 120 || rect.height < 120) return false;
 
   const hasPreviewImage = !!cardEl.querySelector('img');
-  const hasViewNode = !!(
-    cardEl.querySelector('[data-e2e="video-views"]') ||
-    cardEl.querySelector('[class*="StrongVideoCount"]') ||
-    cardEl.querySelector('[class*="video-count"]') ||
-    cardEl.querySelector('strong')
-  );
+  const hasViewNode = !!findVideoViewCountElement(cardEl);
   const videoId = getVideoIdFromLink(link);
   const hasApiData = !!(videoId && apiVideos[videoId]);
 
@@ -3246,19 +3288,16 @@ function scanCards() {
     const videoId = getVideoIdFromLink(link);
     if (!videoId || seenVideoIds.has(videoId)) return;
 
-    const viewsEl = cardEl.querySelector('[data-e2e="video-views"]') ||
-                    cardEl.querySelector('[class*="StrongVideoCount"]') ||
-                    cardEl.querySelector('[class*="video-count"]') ||
-                    cardEl.querySelector('strong');
-    let views = viewsEl ? parseViewCount(viewsEl.textContent) : 0;
+    const viewsEl = findVideoViewCountElement(cardEl);
+    const apiInfo = videoId ? apiVideos[videoId] : null;
+    const views = resolveVideoViewCount(apiInfo, viewsEl);
 
     let createTime = null, likes = 0, comments = 0, shares = 0;
-    if (videoId && apiVideos[videoId]) {
-      createTime = apiVideos[videoId].createTime;
-      likes = apiVideos[videoId].likes;
-      comments = apiVideos[videoId].comments;
-      shares = apiVideos[videoId].shares;
-      if (views === 0) views = apiVideos[videoId].views;
+    if (apiInfo) {
+      createTime = apiInfo.createTime;
+      likes = apiInfo.likes;
+      comments = apiInfo.comments;
+      shares = apiInfo.shares;
     }
 
     repairBrokenVideoThumbnail(cardEl, link);
