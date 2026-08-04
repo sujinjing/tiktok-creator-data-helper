@@ -61,6 +61,13 @@ function bindEvents() {
     button.addEventListener('click', () => setTheme(button.dataset.theme, true));
   });
 
+  document.getElementById('toolbar-visible').addEventListener('change', (event) => {
+    const visible = Boolean(event.target.checked);
+    syncToolbarVisibilityControl(visible);
+    chrome.storage.local.set({ toolbarVisible: visible });
+    notifyActiveTabToolbarVisibility(visible);
+  });
+
   document.getElementById('ai-enabled').addEventListener('change', () => {
     syncAiConfigVisibility();
     persistAiConfigDraft();
@@ -87,6 +94,7 @@ function bindEvents() {
 async function loadConfig() {
   const data = await chrome.storage.local.get([
     'popupTheme',
+    'toolbarVisible',
     'aiEnabled',
     'aiProvider',
     'apiUrl',
@@ -96,6 +104,9 @@ async function loadConfig() {
   ]);
 
   setTheme(data.popupTheme || 'neon', false);
+  const toolbarVisible = data.toolbarVisible !== false;
+  document.getElementById('toolbar-visible').checked = toolbarVisible;
+  syncToolbarVisibilityControl(toolbarVisible);
 
   document.getElementById('ai-enabled').checked = Boolean(data.aiEnabled);
   document.getElementById('provider-select').value = data.aiProvider || 'openai';
@@ -107,6 +118,27 @@ async function loadConfig() {
   if (data.prompt) document.getElementById('script-prompt').value = data.prompt;
 
   syncAiConfigVisibility();
+}
+
+function syncToolbarVisibilityControl(visible) {
+  const state = document.querySelector('.toolbar-visibility-state');
+  if (state) state.textContent = visible ? '显示' : '隐藏';
+}
+
+/**
+ * 立即同步当前标签页，避免仅依赖 storage 事件时悬浮入口延迟或未隐藏。
+ * @param {boolean} visible - 是否显示页面悬浮助手
+ */
+async function notifyActiveTabToolbarVisibility(visible) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) return;
+    chrome.tabs.sendMessage(tab.id, { action: 'setToolbarVisibility', visible }, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch (error) {
+    console.warn('同步页面悬浮助手状态失败:', error);
+  }
 }
 
 function persistAiConfigDraft() {

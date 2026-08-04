@@ -1,62 +1,66 @@
 :root {
-  --bg: #090b10;
-  --panel: rgba(25, 29, 39, 0.7);
-  --panel-strong: rgba(34, 39, 52, 0.82);
-  --border: rgba(225, 232, 238, 0.14);
-  --text: #f5f1e8;
-  --muted: #9ba1ad;
-  --accent: #d8b36b;
-  --accent-2: #74d8cf;
-  --button-text: #10120f;
-  --shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
-  --soft-shadow: 0 14px 36px rgba(0, 0, 0, 0.2);
-  --radius: 20px;
-  --grain: rgba(255, 255, 255, 0.04);
+  /* 默认：曜石主题 - 高品质水晶深色科技风格 */
+  --bg: #0a0b0e;
+  --panel: rgba(15, 17, 22, 0.72);
+  --panel-strong: rgba(20, 24, 32, 0.88);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --accent: #1be3dc;
+  --accent-2: #f22552;
+  --button-text: #0f172a;
+  --shadow: 0 20px 48px rgba(0, 0, 0, 0.44), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --soft-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  --radius: 16px;
+  --grain: rgba(255, 255, 255, 0.02);
 }
 
 body[data-theme="paper"] {
-  --bg: #f3ecdf;
-  --panel: rgba(255, 252, 244, 0.74);
-  --panel-strong: rgba(255, 255, 250, 0.93);
-  --border: rgba(96, 72, 47, 0.18);
-  --text: #2b2118;
-  --muted: #7d6c5b;
-  --accent: #9f7042;
-  --accent-2: #2e756c;
-  --button-text: #fffaf0;
-  --shadow: 0 22px 48px rgba(116, 82, 47, 0.2);
-  --soft-shadow: 0 12px 28px rgba(116, 82, 47, 0.13);
-  --grain: rgba(79, 56, 35, 0.045);
+  /* 象牙主题 - 极致纯净雪域冷玉风格 */
+  --bg: #f4f6f9;
+  --panel: rgba(255, 255, 255, 0.82);
+  --panel-strong: rgba(255, 255, 255, 0.94);
+  --border: rgba(15, 23, 42, 0.06);
+  --text: #1e293b;
+  --muted: #64748b;
+  --accent: #0f766e;
+  --accent-2: #be123c;
+  --button-text: #ffffff;
+  --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  --soft-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  --grain: rgba(15, 23, 42, 0.015);
 }
 
 body[data-theme="ocean"] {
-  --bg: #061615;
-  --panel: rgba(217, 246, 232, 0.08);
-  --panel-strong: rgba(217, 246, 232, 0.14);
-  --border: rgba(187, 230, 216, 0.2);
-  --text: #f3fbf5;
-  --muted: #9bb9ad;
-  --accent: #9bcfbd;
-  --accent-2: #d9b86d;
-  --button-text: #071b18;
-  --shadow: 0 24px 64px rgba(0, 52, 46, 0.4);
-  --soft-shadow: 0 14px 34px rgba(0, 52, 46, 0.22);
-  --grain: rgba(218, 246, 233, 0.04);
+  /* 青瓷主题 - 深邃翡翠竹青温润质感 */
+  --bg: #030e0c;
+  --panel: rgba(255, 255, 255, 0.04);
+  --panel-strong: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.07);
+  --text: #e2f7f3;
+  --muted: #80a69f;
+  --accent: #14b8a6;
+  --accent-2: #eab308;
+  --button-text: #022c22;
+  --shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+  --soft-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+  --grain: rgba(20, 184, 166, 0.02);
 }
 
 body[data-theme="ember"] {
-  --bg: #170f0a;
-  --panel: rgba(246, 196, 133, 0.08);
-  --panel-strong: rgba(246, 196, 133, 0.14);
-  --border: rgba(247, 198, 134, 0.2);
-  --text: #fff6e9;
-  --muted: #c0a485;
-  --accent: #c98d4b;
-  --accent-2: #f1cc7c;
-  --button-text: #261408;
-  --shadow: 0 24px 62px rgba(52, 23, 6, 0.42);
-  --soft-shadow: 0 14px 34px rgba(52, 23, 6, 0.24);
-  --grain: rgba(255, 235, 205, 0.045);
+  /* 琥珀主题 - 火山黑曜暗金奢华风格 */
+  --bg: #0a0604;
+  --panel: rgba(255, 255, 255, 0.04);
+  --panel-strong: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #fef3c7;
+  --muted: #b45309;
+  --accent: #d97706;
+  --accent-2: #f59e0b;
+  --button-text: #1e0b00;
+  --shadow: 0 20px 48px rgba(0, 0, 0, 0.42);
+  --soft-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  --grain: rgba(217, 119, 6, 0.02);
 }
 
 * {
@@ -118,16 +122,15 @@ body {
 
 .logo-icon {
   position: relative;
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent-2);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
-  font-size: 15px;
+  display: block;
+  object-fit: cover;
+  box-shadow:
+    0 4px 12px color-mix(in srgb, var(--accent) 16%, transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 
 .logo-text {
@@ -190,6 +193,70 @@ body {
     linear-gradient(135deg, var(--accent), var(--accent-2));
   border-color: color-mix(in srgb, #fff 22%, transparent);
   box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.toolbar-visibility-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-strong) 86%, transparent);
+  box-shadow: var(--soft-shadow);
+}
+
+.toolbar-visibility-label,
+.toolbar-visibility-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-visibility-label {
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.toolbar-visibility-label img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.toolbar-visibility-toggle {
+  gap: 8px;
+  cursor: pointer;
+}
+
+.toolbar-visibility-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.toolbar-visibility-state {
+  min-width: 32px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.toolbar-visibility-toggle input:checked + .switch-ui {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+.toolbar-visibility-toggle input:checked + .switch-ui::after {
+  transform: translateX(16px);
 }
 
 .section {

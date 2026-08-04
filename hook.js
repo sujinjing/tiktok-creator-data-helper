@@ -84,13 +84,30 @@ function shouldCaptureTikTokApi(url) {
   if (typeof url !== 'string') return false;
   if ([
     '/api/post/item_list',
+    '/api/user/item_list',
+    '/api/user/post',
+    '/api/creator/item_list',
+    '/api/profile/item_list',
     '/api/user/collection_list',
+    '/api/favorite/item_list',
     '/api/item/detail',
     '/api/recommend/item_list',
     '/api/related/item_list',
     '/player/api/v1/items'
   ].some((pattern) => url.includes(pattern))) {
     return true;
+  }
+
+  try {
+    const parsed = new URL(url, location.origin);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+    if (host.endsWith('tiktok.com') &&
+        /\/api\/(?:post|user|creator|profile)\/.+(?:item[_-]?list|posts?)(?:\/|$)/.test(path)) {
+      return true;
+    }
+  } catch (error) {
+    // 无法解析的 URL 继续交给电商接口规则判断。
   }
 
   return isCommerceFocusedApiUrl(url);

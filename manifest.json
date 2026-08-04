@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "达人数据助手",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TikTok 跨境电商运营辅助工具，支持视频数据扫描、商品信息导出、排序与无水印下载。",
   "icons": {
     "16": "icon16.png",
